@@ -243,6 +243,8 @@ public protocol ServicesConfiguartion {
 
 public class Configuration: ConnectionConfiguration, DeviceManagerConfiguration, HostConfiguration {
     
+    let notification: NotificationsService = NotificationsService()
+    
     enum Property: String {
         case hostName = "hostName"
         case hostDeviceId = "hostDeviceId"
@@ -280,7 +282,18 @@ public class Configuration: ConnectionConfiguration, DeviceManagerConfiguration,
     }
     
     public var hostDeviceType: DeviceType {
-        return .Desktop
+        switch deviceTypeInt {
+        case 0:
+            return .Desktop
+        case 1:
+            return .Laptop
+        case 2:
+            return .Phone
+        case 3:
+            return .Tablet
+        default:
+            return .Unknown
+        }
     }
     
     public var hostDeviceId: Device.Id {
@@ -323,8 +336,40 @@ public class Configuration: ConnectionConfiguration, DeviceManagerConfiguration,
     public var launchOnLogin: Bool {
         get { return self.userDefaults.bool(forKey: Property.launchOnLogin.rawValue) }
         set {
-            if SMLoginItemSetEnabled("com.soduto.SodutoLauncher" as CFString, newValue) {
-                self.userDefaults.set(newValue, forKey: Property.launchOnLogin.rawValue)
+            if #available(macOS 13.0, *) {
+                let loginItem = SMAppService.mainApp
+                switch (loginItem.status.rawValue) {
+                case 0:
+                    if ((try? loginItem.register()) != nil) {
+                        self.userDefaults.set(true, forKey: Property.launchOnLogin.rawValue)
+                    } else {
+                        self.userDefaults.set(false, forKey: Property.launchOnLogin.rawValue)
+                        self.notification.ShowCustomNotification(title: "Uh'oh'", body: "We encountered a problem! Try toggling Soduto under Login Items manually", sound: true, id: "LoginItemOff")
+                        SMAppService.openSystemSettingsLoginItems()
+                    }
+                    break
+                case 1:
+                    if ((try? loginItem.unregister()) != nil) {
+                        self.userDefaults.set(false, forKey: Property.launchOnLogin.rawValue)
+                    } else {
+                        self.userDefaults.set(true, forKey: Property.launchOnLogin.rawValue)
+                        self.notification.ShowCustomNotification(title: "Uh'oh", body: "We encountered a problem! Try toggling 'Soduto' under Login Items manually", sound: false, id: "LoginItemsOn")
+                        SMAppService.openSystemSettingsLoginItems()
+                    }
+                    break
+                case 2:
+                    SMAppService.openSystemSettingsLoginItems()
+                    self.notification.ShowCustomNotification(title: "Uh'oh!", body: "macOS requires approval to let Soduto change login item settings. Tap the + icon and add 'Soduto' manually", sound: true, id: "LoginItemApproval")
+                    break
+                case 3:
+                    print("SMAppService not found!")
+                    break
+                default: break
+                }
+            } else {
+                if SMLoginItemSetEnabled("com.soduto.SodutoLauncher" as CFString, newValue) {
+                    self.userDefaults.set(newValue, forKey: Property.launchOnLogin.rawValue)
+                }
             }
         }
     }

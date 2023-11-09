@@ -3,3 +3,5 @@ xcuserdata
 Carthage
 Libraries
 Cartfile.resolved
+Builds/*
+.DS_Store
